@@ -6,7 +6,37 @@ import numpy as np
 import statsmodels.api as sm
 import pdfkit
 import os
+import matplotlib.pyplot as plt
 
+# Set the title and favicon that appear in the Browser's tab bar.
+st.set_page_config(
+    page_title='Auto EDA',
+    page_icon=':bar_chart:', # This is an emoji shortcode. Could be a URL too.
+)
+
+# -----------------------------------------------------------------------------
+
+def display_info(header, content_lines):
+    # 创建文本内容的 HTML 格式，添加自定义样式
+    content_html = f"""
+    <div style="background-color: #000000; padding: 20px; border-radius: 10px; box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);">
+        <h3 style="text-align: center; color: white;">{header}</h3>
+        <ul style="list-style-type: none; padding-left: 0; color: white;">
+    """
+    
+    # 遍历每一行内容并生成带编号的列表项
+    for index, value in enumerate(content_lines, start=1):
+        # 去掉每行开头的破折号和空格
+        cleaned_value = value.lstrip('- ').strip()
+        content_html += f"<li>{index}. {cleaned_value}</li>"
+    
+    content_html += """
+        </ul>
+    </div>
+    """
+    
+    # 在 Streamlit 中显示文本
+    st.markdown(content_html, unsafe_allow_html=True)
 def to_pdf(df, title):
     html = f"""
     <html>
@@ -34,13 +64,25 @@ def to_excel(df):
     return processed_data
 
 st.title("Auto Exploration Data analysis")
+st.header('Upload data')
 st.write("This Data Explorer app lets you see multiple CSV files in interactive mode and lets you see their statistics and visualization.")
 
 uploaded_files = st.file_uploader("Choose CSV files", accept_multiple_files=True, type="csv")
+# uploaded_files = ['Loan payments data.csv'] ##fix
+
 for uploaded_file in uploaded_files:
     with st.container():
         st.write("Data Description of file:", uploaded_file.name)
-        dataframe = pd.read_csv(uploaded_file)
+        # dataframe = pd.read_csv(uploaded_file)
+        ### fixme
+        dataframe = pd.read_csv('./loandata/Loan payments data.csv')
+        ### fixme: convert columns to the Datetime format
+        dataframe['effective_date'] = pd.to_datetime(dataframe['effective_date'])
+        dataframe['due_date'] = pd.to_datetime(dataframe['due_date'])
+        dataframe['paid_off_time'] = pd.to_datetime(dataframe['paid_off_time']).dt.date
+        dataframe['paid_off_time'] = pd.to_datetime(dataframe['paid_off_time'])
+        dataframe.info()
+
         if not dataframe.empty:
             st.write(f"File: **{uploaded_file.name}**")
             # Converting bytes to MB for a more user-friendly display
@@ -63,10 +105,25 @@ for uploaded_file in uploaded_files:
                     dataframe.dropna(inplace=True)
                     st.write("Null values removed!")
 
-            st.write("Dataframe Overview")
+            # st.write("Dataframe Overview")
+### Basic
+            st.header('Dataframe Overview')
             st.dataframe(dataframe)
             st.write("Data Types in Dataframe")
             st.table(dataframe.dtypes)
+
+            ### fixme:
+            header = "Basic Analysis:"
+            content_lines = [
+                        "- There are no duplicated values.",
+                        "- Loan data set have 500 records in 11 columns/features.",
+                        '- There are 100 null values in "paid_off_time" feature and 300 null values in "past_due_days"'
+            ]
+                            # 4. Also we will need to convert some columns to respective datetime datatype
+
+            # 调用函数显示信息
+            display_info(header, content_lines)
+
 
             # if st.checkbox('Show Data Transformation Options', key=f'transform_{uploaded_file.name}'):
             #     transformation_options = st.multiselect(
@@ -87,57 +144,244 @@ for uploaded_file in uploaded_files:
 
             # st.dataframe(dataframe)
 
+
+
+# Statistical Operations on Dataframe
+            st.header("Distribution of columns")
             st.write("Statistical Operations on Dataframe")
             st.table(dataframe.describe())
-            # numerical = dataframe.select_dtypes(include=["number", "float64"])
-            # categorical = dataframe.select_dtypes(include=["object"])
+
+            ###fix  
+            fig, ax = plt.subplots(figsize=(15, 11))
+            # 绘制直方图
+            st.dataframe(dataframe.hist(ax=ax, color="#003080", bins=15))  # 在指定的轴上绘图
+            plt.tight_layout()  # 自动调整布局
+            st.pyplot(fig)  # 传递图形对象给 st.pyplot
+
+
+
+            numerical = dataframe.select_dtypes(include=["number", "float64"])
+            categorical = dataframe.select_dtypes(include=["object"])
+            categorical = categorical.drop(columns=['Loan_ID'], errors='ignore')  # errors='ignore' 確保如果 Loan_ID 不存在不會報錯
             # st.write("Correlation Among Numerical Columns")
             # st.table(numerical.corr())
+### 貸款分布 pie chart            
+            ###fix 
+            loan_stat = dataframe['loan_status'].value_counts()
+            # 添加中标题
+            st.header("Pie chart")
 
-            if st.checkbox('Show Advanced Statistical Analysis', key=f'advanced_stats_{uploaded_file.name}'):
-                st.write("Advanced Statistical Analysis")
+            # option_numerical = st.multiselect('Select numerical columns to plot', list(numerical.columns), key=f'num_cols_{uploaded_file.name}')
+            col = st.selectbox('Select categorical columns to plot', list(categorical.columns), key=f'cat_cols_{uploaded_file.name}')
+            
+            # Plotting
+            if col:
+                # 计算每个状态的计数
+                status_counts = dataframe[f'{col}'].value_counts().reset_index()
+                status_counts.columns = [f'{col}', 'Count']
 
-                if st.checkbox('Perform Linear Regression Analysis', key=f'linear_reg_{uploaded_file.name}'):
-                    numeric_cols = numerical.columns
-                    st.write("Numeric Columns:", numeric_cols)
+                # 使用 Plotly Express 创建饼图
+                fig = px.pie(
+                    status_counts,
+                    values='Count',
+                    names=f'{col}',
+                    title=f'{col} Distribution',
+                    hole=0,  # 如果想创建一个甜甜圈图，可以设置 hole 参数
+                    color=f'{col}',  # 设置颜色（可选）
+                    # startangle=145  # 设置起始角度
+                )
+                fig.update_traces(textinfo='label+value', textposition='inside')
 
-                    x_var = st.selectbox('Select the predictor variable', numeric_cols, key=f'x_var_{uploaded_file.name}')
-                    y_var = st.selectbox('Select the response variable', numeric_cols, key=f'y_var_{uploaded_file.name}')
+                # fig = px.pie(numerical)
+                st.plotly_chart(fig)
 
-                    if st.button('Run Linear Regression', key=f'run_linear_{uploaded_file.name}'):
-                        X = sm.add_constant(dataframe[[x_var]])  # adding a constant
-                        Y = dataframe[y_var]
+                if col == 'loan_status':
+                    st.write("""
+                             We can see here,
 
-                        model = sm.OLS(Y, X).fit()
-                        predictions = model.predict(X)
+                            1. Out of 500 peoples 300 people repaid the full amount on time.
+                            2. Collection paid off shows 100 peoples repaid the loan but lately after due date.
+                            3. Collection shows 100 people not repaid the loan.
+                             """)
 
-                        st.write(model.summary())
+            
+            st.write('---')
 
-            option_numerical = st.multiselect('Select numerical columns to plot', list(numerical.columns), key=f'num_cols_{uploaded_file.name}')
-            option_categorical = st.multiselect('Select categorical columns to plot', list(categorical.columns), key=f'cat_cols_{uploaded_file.name}')
+
+            # if st.checkbox('Show Advanced Statistical Analysis', key=f'advanced_stats_{uploaded_file.name}'):
+            #     st.write("Advanced Statistical Analysis")
+
+            #     if st.checkbox('Perform Linear Regression Analysis', key=f'linear_reg_{uploaded_file.name}'):
+            #         numeric_cols = numerical.columns
+            #         st.write("Numeric Columns:", numeric_cols)
+
+            #         x_var = st.selectbox('Select the predictor variable', numeric_cols, key=f'x_var_{uploaded_file.name}')
+            #         y_var = st.selectbox('Select the response variable', numeric_cols, key=f'y_var_{uploaded_file.name}')
+
+            #         if st.button('Run Linear Regression', key=f'run_linear_{uploaded_file.name}'):
+            #             X = sm.add_constant(dataframe[[x_var]])  # adding a constant
+            #             Y = dataframe[y_var]
+
+            #             model = sm.OLS(Y, X).fit()
+            #             predictions = model.predict(X)
+
+            #             st.write(model.summary())
+
+
+### EDA
+            st.header('EDA - Two Factor Analysis')
+
+            # option_numerical = st.multiselect('Select numerical columns to plot', list(numerical.columns), key=f'num_cols_multi_{uploaded_file.name}')
+            # option_categorical = st.multiselect('Select categorical columns to plot', list(categorical.columns), key=f'cat_cols_multi_{uploaded_file.name}')
+            # optionls = st.multiselect('Select categorical columns to plot', list(categorical.columns), key=f'cat_cols_multi_{uploaded_file.name}')
+            ### fix code
+            col_optionls = ['Gender', 'education', 'age', 'Principal', 'terms', 'effective_date']
+            col_optionls_summary = {'Gender': ['- Out of 500 their are 423 males and 77 females present',
+                                                '- Around 40% of male population have repaid their loan lately (or yet to pay)',
+                                                '- Around 30% of female population have repaid their loan lately (or yet to pay)',
+                                                '- Irrespective of gender, most of the population tend to pay the loan on time'
+                                                ],
+                                    'education': [
+                                                '- Majority of the loan takers are from High School or College background',
+                                                '- Very few people from Masters or Above background took loan.',
+                                                '- Irrespective of education category, most of them repaid their loan'
+                                                ],
+                                    'age': [
+                                            '- Majority of the people who took loan have age ranging from 24 years to 38 years',
+                                            '- Majority of people repaid their loan'
+                                            ], 
+                                    'Principal': [
+                                            '- Majority of the people have opted for Principal of 800 and 1000',
+                                            '- And out of those 1800 people, majority of them repaid their loan'
+                                            ], 
+                                    'terms': [
+                                            '- Only few people have opted loan for 7 days term',
+                                            '- Majority of the late payments are from people who have their loan terms as 15 days and 30 days'
+                                            ], 
+                                    'effective_date': [
+                                                    '- On 11th and 12th September, loan was given to many people',
+                                                    '- It looks like maybe as part of a some loan event drive'
+                                                ]}
+
+
+            optionls = st.multiselect('Select categorical columns to plot', list(col_optionls), key=f'col_optionls{uploaded_file.name}')
+
+            def plot_vs_loan_status(data, x):
+                # 使用 Plotly Express 创建计数图
+                fig = px.histogram(
+                    data,
+                    x=x,
+                    color='loan_status',
+                    title=f'{x} vs Loan Status',
+                    barmode='group',
+                    color_discrete_sequence=('#1e847f', '#ecc19c', '#000000'),
+                )
+
+                # 更新图形的标签
+                fig.update_layout(
+                    xaxis_title=x,
+                    yaxis_title='Count',
+                    legend_title='Loan Status',
+                    legend=dict(x=0.85, y=0.95)  # 将图例放在右上角
+                )
+
+                # 在 Streamlit 中显示图形
+                st.plotly_chart(fig)
+                header = "From above analysis:"
+                content_lines = col_optionls_summary[f'{x}']
+                # 调用函数显示信息
+                display_info(header, content_lines)
+
+            if optionls:
+                for c in optionls:
+                    plot_vs_loan_status(dataframe, c)
+            
+            # st.write('---')
+
+
+            # # 使用 Plotly Express 创建计数图
+            # fig = px.histogram(
+            #     dataframe,
+            #     x='Gender',
+            #     color='loan_status',
+            #     title='Gender vs Loan Status',
+            #     barmode='group',
+            #     color_discrete_sequence=('#1e847f', '#ecc19c', '#000000'),
+            # )
+
+            # # 更新图形的标签
+            # fig.update_layout(
+            #     xaxis_title='Gender',
+            #     yaxis_title='Count',
+            #     legend_title='Loan Status',
+            #     legend=dict(x=0.85, y=0.95)  # 将图例放在右上角
+            # )
+
+            # # 在 Streamlit 中显示图形
+            # st.plotly_chart(fig)
+
 
             # Plotting for categorical data
-            if option_categorical:
-                for col in option_categorical:
-                    fig = px.bar(categorical, x=col)
-                    st.plotly_chart(fig)
+            # if option_categorical:
+            #     for col in option_categorical:
+            #         fig = px.bar(categorical, x=col)
+            #         st.plotly_chart(fig)
 
-            # Plotting for numerical data
-            if option_numerical:
-                for col in option_numerical:
-                    fig = px.line(numerical, y=col)
-                    st.plotly_chart(fig)
-          
-            df_xlsx = to_excel(dataframe)
-            st.download_button(label='📥 Download Current Result as Excel',
-                               data=df_xlsx,
-                               file_name='dataframe.xlsx')
+            # # Plotting for numerical data
+            # if option_numerical:
+            #     for col in option_numerical:
+            #         fig = px.line(numerical, y=col)
+            #         st.plotly_chart(fig)
+### Correlation
+            if st.checkbox('Show Correlation Analysis', key=f'advanced_Correlation_{uploaded_file.name}'):
+
+                st.header('Analysis - Correlation ')
+                # 计算相关矩阵
+                correlation = dataframe[dataframe.columns].corr()
+
+                # 使用 px.imshow 绘制相关矩阵的热力图
+                fig = px.imshow(
+                    correlation, 
+                    text_auto=True,  # 自动显示相关系数
+                    aspect="auto",   # 自动调整长宽比例
+                    color_continuous_scale='RdBu',  # 设置颜色范围
+                    zmin=-1, 
+                    zmax=1
+                )
+
+                # 更新x轴和y轴标签的旋转角度
+                fig.update_xaxes(tickangle=30)
+
+                # 显示图形
+                st.plotly_chart(fig)
+            
+
+### Conclusion
+            st.write('---')
+            st.header('Conclusion')
+
+            header = ""
+            content_lines = [
+                            '- 20% of the people have not repaid the loan 20% of the people have repaid the loan but lately after due date and 60% of the people have repaid the loan on time.',
+                            '- Majority of the loan takers are from High School or College background.',
+                            '- Majority of the people who took loan have age ranging from 24 years to 38 years.',
+                            '- Majority of the people have opted for Principal of 800 and 1000.',
+                            '- Majority of the late payments are from people who have their loan terms as 15 days and 30 days.',
+                            '- Most of the Elder people (35 - 50 years) have paid back loan on time.'
+                        ]
+            # 调用函数显示信息
+            display_info(header, content_lines)
+
+
+            # df_xlsx = to_excel(dataframe)
+            # st.download_button(label='📥 Download Current Result as Excel',
+            #                    data=df_xlsx,
+            #                    file_name='dataframe.xlsx')
            # df_pdf = to_pdf(dataframe, "Data Analysis Report")
            # st.download_button(label="📥 Download Current Result as PDF",
            #        data=df_pdf,
            #        file_name="data_analysis_report.pdf",
            #        mime="application/pdf")
-
 
 with st.form("my_form"):
     st.write("Feedback")
