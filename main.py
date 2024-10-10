@@ -63,6 +63,8 @@ def to_excel(df):
     processed_data = output.getvalue()
     return processed_data
 
+### -------------
+
 st.title("Auto Exploration Data analysis")
 st.header('Upload data')
 st.write("This Data Explorer app lets you see multiple CSV files in interactive mode and lets you see their statistics and visualization.")
@@ -109,6 +111,25 @@ for uploaded_file in uploaded_files:
 ### Basic
             st.header('Dataframe Overview')
             st.dataframe(dataframe)
+### Fix     
+            if uploaded_file.name== "Loan payments data.csv":
+                with st.expander("ℹ️ About This Data", expanded=False):
+                    st.write('''
+                        Please find the details of dataset below which can help to understand the features in it
+
+                        1. Loan_id : A unique loan (ID) assigned to each loan customers- system generated
+                        2. Loan_status : Tell us if a loan is paid off, in collection process - customer is yet to payoff, or paid off after the collection efforts
+                        3. Principal : Principal loan amount at the case origination OR Amount of Loan Applied
+                        4. Terms : Schedule(time period to repay)
+                        5. Effective_date : When the loan got originated (started)
+                        6. Due_date : Due date by which loan should be paid off
+                        7. Paidoff_time : Actual time when loan was paid off , null means yet to be paid
+                        8. Past_due_days : How many days a loan has past due date
+                        9. Age : Age of customer
+                        10. Education : Education level of customer applied for loan
+                        11. Gender : Customer Gender (Male/Female)
+                    ''')
+
             st.write("Data Types in Dataframe")
             st.table(dataframe.dtypes)
 
@@ -145,7 +166,6 @@ for uploaded_file in uploaded_files:
             # st.dataframe(dataframe)
 
 
-
 # Statistical Operations on Dataframe
             st.header("Distribution of columns")
             st.write("Statistical Operations on Dataframe")
@@ -157,7 +177,6 @@ for uploaded_file in uploaded_files:
             st.dataframe(dataframe.hist(ax=ax, color="#003080", bins=15))  # 在指定的轴上绘图
             plt.tight_layout()  # 自动调整布局
             st.pyplot(fig)  # 传递图形对象给 st.pyplot
-
 
 
             numerical = dataframe.select_dtypes(include=["number", "float64"])
