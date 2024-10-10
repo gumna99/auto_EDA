@@ -1,0 +1,8 @@
+streamlit
+pandas
+plotly
+statsmodels
+numpy
+xlsxwriter
+pdfkit
+wkhtmltopdf
